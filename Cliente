@@ -1,0 +1,241 @@
+import os
+import hashlib
+import socket
+import time
+from Crypto.Cipher import PKCS1_OAEP
+from Crypto.PublicKey import RSA
+import random
+import sys
+import os
+import binascii
+from Cryptodome.Cipher import AES
+from Cryptodome import Random
+from binascii import b2a_hex
+
+# Crear mensaje de entrada y a cifrar
+mensajeini = input("Mensaje a cifrar: ")
+
+
+# Crear File para guardar el mensaje de entrada
+fileE = open ("Mensaje de Entrada.txt","w")
+fileE.write(mensajeini)
+fileE.close()
+
+
+#Leer el archivo creado
+fileER = open ("Mensaje de Entrada.txt","r")
+leer = fileER.read()
+fileER.close()
+
+#rsa
+Mensaje = leer
+Mensajeb = str.encode(Mensaje)
+
+key = RSA.generate(2048)
+claveprivada = key.exportKey('PEM')
+clavepublica = key.publickey().exportKey('PEM')
+
+RSApublicKey = RSA.importKey(clavepublica)
+OAEP_cipher = PKCS1_OAEP.new(RSApublicKey)
+Msjencrip = OAEP_cipher.encrypt(Mensajeb)
+
+RSAKey = RSA.importKey(claveprivada)
+OAEP_cipher = PKCS1_OAEP.new(RSAKey)
+Msjdesc = OAEP_cipher.decrypt(Msjencrip)
+
+clavepublicam = bytes(clavepublica)
+
+
+#Condiciones para que clave publica se pueda convertir en clave para vigenere
+cadena = clavepublicam.decode()
+string = cadena
+newstring = ''.join([i for i in string if not i.isdigit()])
+newstringf = newstring.replace('/','')
+newstringf1 = newstringf.replace('+','')
+newstringf2 = newstringf1.replace('-','')
+newstringf3 = newstringf2.replace(' ','')
+newstringf4 = newstringf3.replace('\n','')
+newstringfinal = list(newstringf4)
+a=0
+while a<14:
+    newstringfinal.pop(0)
+    a+=1
+a=len(newstringfinal)-1
+b=0
+while b<12:
+    newstringfinal.pop(a)
+    b+=1
+    a-=1
+
+#Nos queda esta variable como clave publica final
+newstringfinalx = "".join(newstringfinal)
+
+
+#cifrar y descifrar con vigenere
+abcdario = ("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+def cifrar_mensaje(clave,mensajel):
+    return traductor_mensaje(clave,mensajel,'1')
+
+def descifrar_mensaje(clave,mensajel):
+    return traductor_mensaje(clave,mensajel,'2')
+
+def traductor_mensaje(clave,mensajel,accion):
+    traducido=[]
+    indice_clave=0
+    clave=clave.upper()
+
+    for symbol in mensajel:
+        num = abcdario.find(symbol.upper())
+        if num!=-1:
+            if accion=='1':
+                num+=abcdario.find(clave[indice_clave])
+            elif accion=='2':
+                num-=abcdario.find(clave[indice_clave])
+            num%=len(abcdario)
+            if symbol.isupper():
+                traducido.append(abcdario[num])
+            elif symbol.islower():
+                traducido.append(abcdario[num].lower())
+            indice_clave+=1
+            if indice_clave==len(clave):
+                indice_clave=0
+
+        else:
+            traducido.append(symbol)
+    return ('').join(traducido)
+
+#clave publica rsa para vigenere
+clavecodi = newstringfinalx
+#con esto ciframos con vigenere
+traducido=cifrar_mensaje(clavecodi,leer)
+
+#Se guarda el texto cifrado en txt
+file54= open ("textocifrado.txt","w")
+file54.write(traducido)
+file54.close()
+
+#Se guarda la clave publica de RSA para compartirla al otro archivo
+file29= open ("ClavepublicaRSA.txt","w")
+file29.write(clavecodi)
+file29.close()
+print("Esperando... y enviando clave publica")
+time.sleep(15)
+
+#Comienza el socket - cliente
+clavepublicam = bytes(clavepublica)
+mi_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+mi_socket.connect(("localhost", 8000))
+
+mensaje = "Envio de Mensaje y Clave publica: \n"
+mi_socket.send(mensaje.encode())
+
+mi_socket.send(str.encode(clavecodi))
+#Clave DH
+file9= open ("ClavePublicaDH.txt","r")
+clave21= file9.read()
+file9.close()
+#Requerimos las respuestas del servidor
+respuesta = mi_socket.recv(1024).decode()
+respuesta1 = mi_socket.recv(1024).decode()
+respuesta2 = mi_socket.recv(1024).decode()
+respuesta3 = mi_socket.recv(1024).decode()
+print(respuesta)
+print(respuesta1)
+print(respuesta2)
+print(clave21)
+print(respuesta3)
+
+mi_socket.close()
+
+#Comprobacion de clave para acceder a los mensajes
+MensajeE = leer
+clave = int(input("\n INGRESE CLAVE DH: "))
+if str(clave) == clave21:
+    print("Clave Correcta, Su mensaje cifrado se encuentra en el archivo Mensaje de Vuelta Emcriptado con AES.txt\n")
+    print("Se asume que B descifra el mensaje y este queda en Mensaje de Vuelta Desencriptado y al Revez.txt")
+
+else:
+    sys.exit("Clave Incorrecta")   
+
+file999= open ("Mensaje de SERVIDOR.txt","r")
+estesi= file999.read()
+file999.close()
+
+data = estesi
+
+key = b'this is a 16 key'               
+iv = Random.new().read(AES.block_size)
+
+# Función de cifrado, creación usando la tecla y IV, utilizando el modo MODE_CFB
+myencrypt = AES.new(key, AES.MODE_CFB, iv)
+
+# La longitud debe ser un múltiplo de 16, si la longitud es inferior a 16, debe constituir un múltiplo de 16.
+# Agregue IV (vector de clave) al comienzo del cifrado cifrado, juntos
+encrypttext = iv + myencrypt.encrypt(data.encode())
+
+# Función de descifra, generar nuevos objetos AES con clave y IV (primero 16 cps
+mydecrypt = AES.new(key, AES.MODE_CFB, encrypttext[:16])
+
+# Use el objeto AES recién generado, el descifrado cifrado cifrado cifrado
+decrypttext = mydecrypt.decrypt(encrypttext[16:])
+
+file13= open ("Mensaje de Vuelta Desemcriptado y al Revez.txt","w")
+file13.write(''.join(reversed(str(decrypttext))))
+file13.close()
+
+print("Calcular el MD5 de los archivos: \n\n")
+#MD5
+ficheroElegido = ""
+def md5Texto(texto):
+    # Crear un objeto del tipo MD5
+    textoMD5 = hashlib.md5()
+    # Utilizar el método update para generar el MD5 de la cadena
+    textoMD5.update(texto.encode("UTF-8"))
+    # Obtener los valores hexadecimales generados del MD5    
+    textoMD5 = textoMD5.hexdigest()
+    return textoMD5
+
+def md5(fichero):
+    fp = open(fichero, "rb")
+    buffer = fp.read()
+    hashObj = hashlib.md5()
+    hashObj.update(buffer)
+    lastHash = hashObj.hexdigest().upper()
+    md5 = lastHash
+    fp.close()
+    return fichero,md5
+
+def limpiarPantalla():
+    if os.name == "posix":
+        os.system ("clear")
+    elif os.name == "ce" or os.name == "nt" or os.name == "dos":
+        os.system ("cls")    
+while True:
+    print("------------- MENÚ ------------- ")
+    print("0 Elegir fichero")
+    print("2 MD5 de fichero")
+    print("10 Salir")
+    opcion = int(input("Introduzca una opción [0..2]: "))
+    limpiarPantalla()
+    if opcion == 0:
+        ficheroElegido = input("Introduzca la ruta y nombre de fichero: ")
+        print("=" * 40)
+        print("Fichero: ", ficheroElegido)
+        print("=" * 40)
+    elif opcion == 2:
+        if ficheroElegido == "":
+            print("=" * 40)
+            print("Debe elegir un fichero (opción 0)")
+            print("=" * 40)
+            input("\n\nPulsa INTRO para continuar con el programa...")
+        else:        
+            print("=" * 40)
+            fichero, lastHash= md5(ficheroElegido)
+            print("Fichero: "+fichero)
+            print("MD5: "+lastHash)
+            print("=" * 40)        
+    else:
+        break
+        
+        
