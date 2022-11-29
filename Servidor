@@ -1,0 +1,169 @@
+import socket
+import sys
+import time
+import random
+import sys
+import os
+import binascii
+from Cryptodome.Cipher import AES
+from Cryptodome import Random
+from binascii import b2a_hex
+
+#Diffie Helman
+def primesInRange(x, y):
+    prime_list = []
+
+    for n in range(x, y):
+        isPrime = True
+
+        for num in range(2, n):
+            if n % num == 0:
+                isPrime = False
+
+        if isPrime:
+            prime_list.append(n)
+            
+    return prime_list
+
+primos = primesInRange(0, 10000)
+primoalazar = random.choice (primos)
+
+g = primoalazar
+p = random.randint(1000, 10000)
+print ("'P' tendra el valor de: ",p," y 'G' tendra el valor de: ",g,"\n")
+
+a = int(input("Para A: Ingrese su clave secreta privada (Recuerde que debe ser menor a 'P' y mayor que 0 = "))
+
+if a > 0 and a < p:
+    print("El valor de a cumple con los requisitos")
+else:
+    print("El valor de a no cumple con los requisitos")  
+A = ((g**a)% p)
+mensaje = input("(Se Asume que 'A' quiere mandarle un mensaje a 'B') Ingrese su mensaje: ")
+print("\n"*10)
+b = int(input("Para B: Ingrese su clave secreta privada (Recuerde que debe ser menor a 'P' y mayor que 0 = "))
+if b > 0 and b < p:
+    print("El valor de b cumple con los requisitos")
+else:
+    print("El valor de b no cumple con los requisitos")
+B = ((g**b)% p)
+# para sacar mensaje
+s1 = ((B**a)% p)
+
+s2 = ((A**b)% p)
+
+#Clave Publica dh se guarda en txt
+file1 = open ("ClavePublicaDH.txt","w")
+file1.write(str(s1))
+file1.close()
+
+#Se guarda el mensaje que sera encriptado con aes256
+MensajeE = mensaje
+file177 = open ("Mensaje de SERVIDOR.txt","w")
+file177.write(mensaje)
+file177.close()
+
+
+#AES 256
+data=mensaje
+key = b'this is a 16 key'               
+iv = Random.new().read(AES.block_size)
+
+# Función de cifrado, creación usando la tecla y IV, utilizando el modo MODE_CFB
+myencrypt = AES.new(key, AES.MODE_CFB, iv)
+
+# La longitud debe ser un múltiplo de 16, si la longitud es inferior a 16, debe constituir un múltiplo de 16.
+# Agregue IV (vector de clave) al comienzo del cifrado cifrado, juntos
+encrypttext = iv + myencrypt.encrypt(data.encode())
+
+# Función de descifra, generar nuevos objetos AES con clave y IV (primero 16 cps
+mydecrypt = AES.new(key, AES.MODE_CFB, encrypttext[:16])
+
+# Use el objeto AES recién generado, el descifrado cifrado cifrado cifrado
+decrypttext = mydecrypt.decrypt(encrypttext[16:])
+#Se encripta el Mensaje
+file2135= open ("Mensaje de Vuelta Emcriptado con AES.txt","w")
+file2135.write(str(encrypttext))
+file2135.close()
+
+
+#vigenere
+abcdario = ("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+def cifrar_mensaje(clave,mensajel):
+    return traductor_mensaje(clave,mensajel,'1')
+
+def descifrar_mensaje(clave,mensajel):
+    return traductor_mensaje(clave,mensajel,'2')
+
+def traductor_mensaje(clave,mensajel,accion):
+    traducido=[]
+    indice_clave=0
+    clave=clave.upper()
+
+    for symbol in mensajel:
+        num = abcdario.find(symbol.upper())
+        if num!=-1:
+            if accion=='1':
+                num+=abcdario.find(clave[indice_clave])
+            elif accion=='2':
+                num-=abcdario.find(clave[indice_clave])
+            num%=len(abcdario)
+            if symbol.isupper():
+                traducido.append(abcdario[num])
+            elif symbol.islower():
+                traducido.append(abcdario[num].lower())
+            indice_clave+=1
+            if indice_clave==len(clave):
+                indice_clave=0
+
+        else:
+            traducido.append(symbol)
+    return ('').join(traducido)
+
+#se lee clave publica 
+file29= open ("ClavepublicaRSA.txt","r")
+clave= file29.read()
+file29.close()
+
+#se descifra el vigenere
+file2= open ("textocifrado.txt","r")
+tradu= file2.read()
+file2.close()
+
+traducido=descifrar_mensaje(clave,tradu)
+
+#Desencriptado de vigenere y dado vuelta en archivo
+file213= open ("Mensaje de Salida.txt","w")
+file213.write(''.join(reversed(traducido)))
+file213.close()
+
+
+#comienza el socket - Servidor
+mi_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+mi_socket.bind(("localhost",8000))
+
+mi_socket.listen(5)
+
+while True:
+    conexion, addr = mi_socket.accept()
+    print ("Iniciando Conexion Privada")
+    print(addr)
+    respuesta = conexion.recv(1024).decode()
+    print(respuesta)
+    time.sleep(3)
+    mensajexd = "Okey, Mensaje Recibido.\nDesencriptando Mensaje \n"
+    conexion.send(mensajexd.encode())
+    time.sleep(3)
+    conexion.send(str.encode("Mensaje Desencriptado.. En txt\n"))
+    time.sleep(3)
+    print("Encriptando nuevo mensaje, Enviando Clave Publica DH")
+    conexion.send(str.encode("Enviando Clave Publica DH"))
+    time.sleep(3)
+    conexion.send(str.encode("Cerrando Sesion"))
+    time.sleep(3)
+
+    
+    conexion.close()
+    print ("Cerrando Sesion")
+    break
